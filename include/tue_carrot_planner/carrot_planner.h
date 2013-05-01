@@ -21,8 +21,6 @@ public:
 
 private:
 
-    void initialize(const std::string &name);
-
     bool setGoal(geometry_msgs::PoseStamped& goal);
 
     bool computeVelocityCommand(geometry_msgs::Twist& cmd_vel);
@@ -30,15 +28,14 @@ private:
     void setZeroVelocity(geometry_msgs::Twist& cmd_vel);
 
     double sign(double x){
-        return x < 0.0 ? -1.0 : 1.0;
+        return (x < 0.0)?-1.0:1.0;
     }
 
-    void determineDesiredVelocity(tf::Vector3 e_pos, double e_theta, const geometry_msgs::Twist& current_vel,
-                                  double dt, geometry_msgs::Twist& cmd_vel);
+    void determineDesiredVelocity(double dt, geometry_msgs::Twist& cmd_vel);
 
     double determineReference(double error_x, double vel, double max_vel, double max_acc, double dt);
 
-    bool isClearLine(tf::Vector3& goal);
+    bool isClearLine();
 
     void laserScanCallBack(const sensor_msgs::LaserScan::ConstPtr& laser_scan);
 
@@ -48,46 +45,34 @@ private:
 
     void publishCmdVel(const geometry_msgs::Twist& cmd_vel, ros::Publisher& pub);
 
+    //! ROS parameters
     double MAX_VEL;
     double MAX_ACC;
     double MAX_VEL_THETA;
     double MAX_ACC_THETA;
-    double MAX_LOCAL_GOAL_DISTANCE;
-    double LOOKAHEAD;
-    double XY_GOALREGION;
-    double THETA_GOALREGION;
-    double MAX_STRAFE_DISTANCE;
-
-    double MAX_YAW_ERROR_DRIVING;
-    double MAX_YAW_ERROR_STILL;
-    double STILL_MAX_VEL;
-    double STILL_MAX_VEL_SQ;
-
-    double MAX_PATH_DISTANCE_SQ;
-
     double GAIN;
+    double MIN_ANGLE;
+    double DISTANCE_VIRTUAL_WALL;
+    double RADIUS_ROBOT;
 
-    double FOLLOW_DISTANCE;
-    std::string TRACKING_FRAME;
+    //! Tracking frame
+    std::string tracking_frame_;
 
-    bool initialized_;
-
+    //! Goal position and angle
     tf::Vector3 goal_;
     double goal_angle_;
 
-    // timestamp of last time cmd_vel was published
+    //! Timestamp and value of last time cmd_vel was published
     double t_last_cmd_vel_;
+    geometry_msgs::Twist last_cmd_vel_;
 
+    //! Comminucation
     ros::Publisher carrot_pub_, cmd_vel_pub_;
     ros::Subscriber laser_scan_sub_;
 
-    geometry_msgs::Twist last_cmd_vel_;
-
+    //! Laser data
     sensor_msgs::LaserScan laser_scan_;
-
-    //double angle_;
-
-    bool laser_data_ready_;
+    bool laser_data_available_;
 
 };
 
