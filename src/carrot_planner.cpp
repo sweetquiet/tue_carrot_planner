@@ -261,7 +261,7 @@ double CarrotPlanner::determineReference(double error_x, double vel, double max_
     bool con = false;
     bool acc = false;
 
-    double a = 0.0;
+    //double a = 0.0;
     double vel_mag = fabs(vel);
 
     //compute deceleration distance
@@ -311,17 +311,17 @@ double CarrotPlanner::determineReference(double error_x, double vel, double max_
             vel_mag += max_acc * dt;
             vel_mag = std::min<double>(vel_mag, max_vel);
             //x+= dir * vel_mag * dt;
-            a = dir * max_acc;
+            //a = dir * max_acc;
         }
         if (con){
             //x+= dir * vel_mag * dt;
-            a = 0.0;
+            //a = 0.0;
         }
         if (dec){
             vel_mag -= max_acc * dt;
             vel_mag = std::max<double>(vel_mag, 0.0);
             //x+= dir * vel_mag * dt;
-            a = - dir * max_acc;
+            //a = - dir * max_acc;
             if (vel_mag < (0.5 * max_acc * dt)){
                 vel_mag = 0.0;
                 //reset = true;
@@ -334,7 +334,7 @@ double CarrotPlanner::determineReference(double error_x, double vel, double max_
     //stand still: reset values
     else if (still){
         vel = 0;
-        a = 0.0;
+        //a = 0.0;
         sign_x = 0;
         //reset = true;
         //ready = true;
