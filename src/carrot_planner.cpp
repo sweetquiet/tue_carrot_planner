@@ -7,12 +7,12 @@ CarrotPlanner::CarrotPlanner(const std::string &name) :
 
     //! Get parameters from the ROS parameter server
     private_nh.param("max_vel_translation", MAX_VEL, 0.5);
-    private_nh.param("max_acc_translation", MAX_ACC, 0.25);
-    private_nh.param("max_vel_rotation", MAX_VEL_THETA, 0.5);
+    private_nh.param("max_acc_translation", MAX_ACC, 0.15);
+    private_nh.param("max_vel_rotation", MAX_VEL_THETA, 0.3);
     private_nh.param("max_acc_rotation", MAX_ACC_THETA, 0.25);
     private_nh.param("gain", GAIN, 0.9);
-    private_nh.param("min_angle", MIN_ANGLE, 3.14159/10);
-    private_nh.param("dist_vir_wall", DISTANCE_VIRTUAL_WALL, 0.60);
+    private_nh.param("min_angle", MIN_ANGLE, 3.14159/6);
+    private_nh.param("dist_vir_wall", DISTANCE_VIRTUAL_WALL, 0.50);
     private_nh.param("radius_robot", RADIUS_ROBOT, 0.40);
 
     //! Publishers
@@ -63,8 +63,9 @@ bool CarrotPlanner::setGoal(geometry_msgs::PoseStamped &goal){
     goal_.setX(goal.pose.position.x);
     goal_.setY(goal.pose.position.y);
     goal_.setZ(goal.pose.position.z);
-    if (goal_angle_ < MIN_ANGLE) {
+    if (fabs(goal_angle_) < MIN_ANGLE) {
         ROS_WARN("Angle %f < %f: will be ignored", goal_angle_, MIN_ANGLE);
+        goal_angle_ = 0;
     }
     ROS_INFO("CarrotPlanner::setGoal: (x,y,th) = (%f,%f,%f)", goal_.getX(), goal_.getY(), goal_angle_);
 
@@ -235,6 +236,9 @@ void CarrotPlanner::determineDesiredVelocity(double dt, geometry_msgs::Twist &cm
     ROS_INFO(" vel_diff = (%f,%f,%f), acc_desired = %f", vel_diff.getX(), vel_diff.getY(), vel_diff.getZ(), acc_desired);
     if (acc_desired > MAX_ACC) {
         tf::vector3TFToMsg(current_vel_trans + vel_diff.normalized() * MAX_ACC * dt, cmd_vel.linear);
+    } else if (sqrt(error_lin.getX()*error_lin.getX() + error_lin.getY()*error_lin.getY()) < 1.5) {
+		// Lower maximum velocity if robot is nearby
+		tf::vector3TFToMsg(vel_desired*0.5, cmd_vel.linear);
     } else {
         tf::vector3TFToMsg(vel_desired, cmd_vel.linear);
     }
