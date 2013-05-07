@@ -11,9 +11,9 @@ CarrotPlanner::CarrotPlanner(const std::string &name) :
     private_nh.param("max_vel_rotation", MAX_VEL_THETA, 0.3);
     private_nh.param("max_acc_rotation", MAX_ACC_THETA, 0.25);
     private_nh.param("gain", GAIN, 0.9);
-    private_nh.param("min_angle", MIN_ANGLE, 3.14159/6);
+    private_nh.param("min_angle", MIN_ANGLE, 3.14159/14);
     private_nh.param("dist_vir_wall", DISTANCE_VIRTUAL_WALL, 0.50);
-    private_nh.param("radius_robot", RADIUS_ROBOT, 0.40);
+    private_nh.param("radius_robot", RADIUS_ROBOT, 0.25);
 
     //! Publishers
     carrot_pub_ = private_nh.advertise<visualization_msgs::Marker>("carrot", 1);
@@ -238,7 +238,7 @@ void CarrotPlanner::determineDesiredVelocity(double dt, geometry_msgs::Twist &cm
         tf::vector3TFToMsg(current_vel_trans + vel_diff.normalized() * MAX_ACC * dt, cmd_vel.linear);
     } else if (sqrt(error_lin.getX()*error_lin.getX() + error_lin.getY()*error_lin.getY()) < 1.5) {
 		// Lower maximum velocity if robot is nearby
-		tf::vector3TFToMsg(vel_desired*0.5, cmd_vel.linear);
+		tf::vector3TFToMsg(vel_desired*1.0, cmd_vel.linear);
     } else {
         tf::vector3TFToMsg(vel_desired, cmd_vel.linear);
     }
