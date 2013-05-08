@@ -16,6 +16,7 @@ CarrotPlanner::CarrotPlanner(const std::string &name) :
     private_nh.param("radius_robot", RADIUS_ROBOT, 0.25);
 
     //! Publishers
+    virt_wall_pub_ = private_nh.advertise<sensor_msgs::LaserScan>("virtual_wall", 1);
     carrot_pub_ = private_nh.advertise<visualization_msgs::Marker>("carrot", 1);
     cmd_vel_pub_ = private_nh.advertise<geometry_msgs::Twist>("/cmd_vel", 1);
 
@@ -67,7 +68,7 @@ bool CarrotPlanner::setGoal(geometry_msgs::PoseStamped &goal){
         ROS_WARN("Angle %f < %f: will be ignored", goal_angle_, MIN_ANGLE);
         goal_angle_ = 0;
     }
-    ROS_INFO("CarrotPlanner::setGoal: (x,y,th) = (%f,%f,%f)", goal_.getX(), goal_.getY(), goal_angle_);
+    ROS_DEBUG("CarrotPlanner::setGoal: (x,y,th) = (%f,%f,%f)", goal_.getX(), goal_.getY(), goal_angle_);
 
     //! Publish marker
     publishCarrot(goal_, carrot_pub_);
@@ -85,7 +86,7 @@ bool CarrotPlanner::computeVelocityCommand(geometry_msgs::Twist &cmd_vel){
         dt = time - t_last_cmd_vel_;
     }
     t_last_cmd_vel_ = time;
-    ROS_INFO("Goal before is clear line (%f,%f,%f)", goal_.getX(), goal_.getY(), goal_angle_);
+    ROS_IDEBUG("Goal before is clear line (%f,%f,%f)", goal_.getX(), goal_.getY(), goal_angle_);
 
     //! Check if the path is free
     if(!isClearLine()) {
@@ -96,7 +97,7 @@ bool CarrotPlanner::computeVelocityCommand(geometry_msgs::Twist &cmd_vel){
         goal_.setZ(0);
     }
 
-    ROS_INFO("Goal before normalization is (%f,%f,%f)", goal_.getX(), goal_.getY(), goal_angle_);
+    ROS_DEBUG("Goal before normalization is (%f,%f,%f)", goal_.getX(), goal_.getY(), goal_angle_);
 
     //! Normalize position
     tf::Vector3 goal_norm;
@@ -155,12 +156,24 @@ bool CarrotPlanner::isClearLine(){
     int d_step = dth/laser_scan_.angle_increment;
     //int beam_middle = num_readings/2;
 
+    ROS_INFO("Angle virtual wall is %f [deg]", 2*dth/3.1415*180.0);
+
+    sensor_msgs::LaserScan wall_msg;
+    wall_msg.angle_min = laser_scan_.angle_min + std::min(index_beam_obst - d_step,0) * laser_scan_.angle_increment;
+    wall_msg.header = laser_scan_.header;
+    wall_msg.header.stamp = ros::Time::now();
+
     // TODO: use driving direction here, not just middle beam
     // TODO: virtual force: decrease/increase y-coordinate goal using goal_.setY(SOME_GAIN*(goal_.getY()-dy));
+
+    bool path_free = true;
 
     for (int j = std::min(index_beam_obst - d_step,0); j < index_beam_obst + d_step; ++j) {
         if (j < num_readings) {
             double dist_to_obstacle = laser_scan_.ranges[j];
+
+            wall_msg.ranges.push_back(DISTANCE_VIRTUAL_WALL);
+            wall_msg.intensities.push_back(100);
 
             if (dist_to_obstacle > 0.01 && dist_to_obstacle < DISTANCE_VIRTUAL_WALL) {
 
@@ -171,12 +184,14 @@ bool CarrotPlanner::isClearLine(){
                 double dy = sin(angle)*dist_to_obstacle;
                 ROS_INFO(" dy = %f", dy);
 
-                return false;
+                path_free = false;
             }
         }
     }
 
-    return true;
+    virt_wall_pub_.publish(wall_msg);
+
+    return path_free;
 }
 
 
@@ -200,7 +215,7 @@ void CarrotPlanner::determineDesiredVelocity(double dt, geometry_msgs::Twist &cm
     //! Determine errors
     tf::Vector3 error_lin = goal_;
     double error_ang = goal_angle_;
-    ROS_INFO("Desired angle is %f", goal_angle_);
+    ROS_DEBUG("Desired angle is %f", goal_angle_);
 
     //! Current command vel
     const geometry_msgs::Twist current_vel = last_cmd_vel_;
@@ -214,9 +229,9 @@ void CarrotPlanner::determineDesiredVelocity(double dt, geometry_msgs::Twist &cm
     double v_desired_norm = 0;
     if (error_lin_norm > 0) {
         v_desired_norm = std::min(MAX_VEL, GAIN * sqrt(2 * error_lin_norm * MAX_ACC));
-        ROS_INFO(" updated v_wanted_norm to %f", v_desired_norm);
+        ROS_DEBUG(" updated v_wanted_norm to %f", v_desired_norm);
     } else {
-        ROS_INFO(" zeros normalized error: v_wanted_norm is 0 too");
+        ROS_DEBUG(" zeros normalized error: v_wanted_norm is 0 too");
     }
 
     //! Make sure the desired velocity has the direction towards the goal and the magnitude of v_desired_norm
@@ -233,21 +248,30 @@ void CarrotPlanner::determineDesiredVelocity(double dt, geometry_msgs::Twist &cm
     //! Check if the acceleration bound is violated
     tf::Vector3 vel_diff = vel_desired - current_vel_trans;
     double acc_desired = vel_diff.length() / dt;
-    ROS_INFO(" vel_diff = (%f,%f,%f), acc_desired = %f", vel_diff.getX(), vel_diff.getY(), vel_diff.getZ(), acc_desired);
+    ROS_DEBUG(" vel_diff = (%f,%f,%f), acc_desired = %f", vel_diff.getX(), vel_diff.getY(), vel_diff.getZ(), acc_desired);
     if (acc_desired > MAX_ACC) {
         tf::vector3TFToMsg(current_vel_trans + vel_diff.normalized() * MAX_ACC * dt, cmd_vel.linear);
-    } else if (sqrt(error_lin.getX()*error_lin.getX() + error_lin.getY()*error_lin.getY()) < 1.5) {
+    } /*else if (sqrt(error_lin.getX()*error_lin.getX() + error_lin.getY()*error_lin.getY()) < 1.5) {
 		// Lower maximum velocity if robot is nearby
 		tf::vector3TFToMsg(vel_desired*1.0, cmd_vel.linear);
     } else {
         tf::vector3TFToMsg(vel_desired, cmd_vel.linear);
+    }*/
+    else {
+        //! Reduce max velocity based on distance
+        double distance = sqrt(error_lin.getX()*error_lin.getX() + error_lin.getY()*error_lin.getY());
+        vel_desired = std::min(vel_desired, distance * 2.0/3.0 * vel_desired);
+        tf::vector3TFToMsg(vel_desired, cmd_vel.linear);
+        if (std::min(distance * 2.0/3.0, 1.0) < 1.0) {
+            ROS_INFO("Lowered velocity by a factor %f", std::min(distance * 2.0/3.0, 1.0));
+        }
     }
 
     //! The rotation is always controlled
     cmd_vel.angular.x = 0;
     cmd_vel.angular.y = 0;
     cmd_vel.angular.z = determineReference(error_ang, current_vel.angular.z, MAX_VEL_THETA, MAX_ACC_THETA, dt);
-    ROS_INFO("Final velocity command: (x:%f, y:%f, th:%f)", cmd_vel.linear.x, cmd_vel.linear.y, cmd_vel.angular.z);
+    ROS_DEBUG("Final velocity command: (x:%f, y:%f, th:%f)", cmd_vel.linear.x, cmd_vel.linear.y, cmd_vel.angular.z);
 }
 
 // PARTLY TAKEN FROM amigo_ref_interpolator

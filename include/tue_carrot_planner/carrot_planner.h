@@ -67,7 +67,7 @@ private:
     geometry_msgs::Twist last_cmd_vel_;
 
     //! Comminucation
-    ros::Publisher carrot_pub_, cmd_vel_pub_;
+    ros::Publisher carrot_pub_, cmd_vel_pub_, virt_wall_pub_;
     ros::Subscriber laser_scan_sub_;
 
     //! Laser data
