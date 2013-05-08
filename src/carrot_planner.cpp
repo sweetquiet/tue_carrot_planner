@@ -1,7 +1,7 @@
 #include "tue_carrot_planner/carrot_planner.h"
 
 CarrotPlanner::CarrotPlanner(const std::string &name) :
-    tracking_frame_("/base_link"), t_last_cmd_vel_(ros::Time::now().toSec()), laser_data_available_(false) {
+    tracking_frame_("/base_link"), t_last_cmd_vel_(ros::Time::now().toSec()), laser_data_available_(false), visualization_(true) {
 
     ros::NodeHandle private_nh("~/" + name);
 
@@ -16,8 +16,10 @@ CarrotPlanner::CarrotPlanner(const std::string &name) :
     private_nh.param("radius_robot", RADIUS_ROBOT, 0.5);
 
     //! Publishers
-    virt_wall_pub_ = private_nh.advertise<sensor_msgs::LaserScan>("virtual_wall", 1);
-    carrot_pub_ = private_nh.advertise<visualization_msgs::Marker>("carrot", 1);
+    if (visualization_) {
+        virt_wall_pub_ = private_nh.advertise<sensor_msgs::LaserScan>("virtual_wall", 1);
+        carrot_pub_ = private_nh.advertise<visualization_msgs::Marker>("carrot", 1);
+    }
     cmd_vel_pub_ = private_nh.advertise<geometry_msgs::Twist>("/cmd_vel", 1);
 
     //! Listen to laser data
@@ -68,14 +70,14 @@ bool CarrotPlanner::setGoal(geometry_msgs::PoseStamped &goal){
     goal_.setX(goal.pose.position.x);
     goal_.setY(goal.pose.position.y);
     goal_.setZ(goal.pose.position.z);
-    if (fabs(goal_angle_) < MIN_ANGLE) {
-        ROS_WARN("Angle %f < %f: will be ignored", goal_angle_, MIN_ANGLE);
-        goal_angle_ = 0;
-    }
+    //if (fabs(goal_angle_) < MIN_ANGLE) {
+    //    ROS_WARN("Angle %f < %f: will be ignored", goal_angle_, MIN_ANGLE);
+    //    goal_angle_ = 0;
+    //}
     ROS_DEBUG("CarrotPlanner::setGoal: (x,y,th) = (%f,%f,%f)", goal_.getX(), goal_.getY(), goal_angle_);
 
     //! Publish marker
-    publishCarrot(goal_, carrot_pub_);
+    if (visualization_) publishCarrot(goal_, carrot_pub_);
 
     return true;
 
@@ -129,9 +131,6 @@ bool CarrotPlanner::isClearLine(){
         ROS_INFO("No laser data available: path considered blocked");
         return false;
     }
-
-    //! Get number of beams and resolution LRF from most recent laser message
-    int num_readings = laser_scan_.ranges.size();
     
     //! Transform goal angle to frame base laser
     double angle_goal = goal_angle_;
@@ -145,57 +144,39 @@ bool CarrotPlanner::isClearLine(){
         ROS_WARN("Path check in carrot planner - transformPosition(): %s",ex.what());
     }
     
-    ROS_INFO("Changed angle from %f to %f", goal_angle_, angle_goal);
 
-    //! Calculate the index corresponding to the beam
+    //! Calculate the index corresponding to the beam that intersects with the target position
     int num_incr = angle_goal/laser_scan_.angle_increment; // Both in rad
-    //int offset = 3.1415/2.0/laser_scan_.angle_increment;
-    int index_beam_obst = num_readings/2 + num_incr;// - offset;
+    int index_beam_target_pos = num_readings/2 + num_incr;
 
-    /*
-    int width = 15;
-
-    for (int i = index_beam_obst - width; i <= index_beam_obst + width; ++i){
-
-        //! Check if the intended direction falls within the range of the LRF
-        if (i < num_readings) {
-            double dist_to_obstacle = laser_scan_.ranges[i];
-
-            ROS_DEBUG("Distance at beam %d/%d is %f [m] (goal lies %f [m] ahead)", i, num_readings, dist_to_obstacle, goal_.length() - 0.1);
-
-            if (dist_to_obstacle < goal_.length() - 0.1 && dist_to_obstacle > 0.15 && dist_to_obstacle < 1.5) {
-                ROS_WARN("Obstacle detected at %f [m], whereas goal lies %f [m] ahead", dist_to_obstacle, goal_.length() - 0.1);
-                return false;
-            }
-        }
-    }*/
+    //! Get number of beams
+    int num_readings = laser_scan_.ranges.size();
 
     //! Check for collisions with virtual wall in front of the robot
     double dth = atan2(RADIUS_ROBOT, DISTANCE_VIRTUAL_WALL);
     int d_step = dth/laser_scan_.angle_increment;
-    //int beam_middle = num_readings/2;
 
-    double angle_beam_obs = laser_scan_.angle_min + index_beam_obst * laser_scan_.angle_increment;
-    ROS_INFO("Angle beam obstable is %f [deg] or %f [rad]", angle_beam_obs/3.1415*180.0, angle_beam_obs);
-    ROS_INFO("d_step is %d", d_step);
+
+    //double angle_beam_obs = laser_scan_.angle_min + index_beam_target_pos * laser_scan_.angle_increment;
+    //ROS_INFO("Angle beam obstable is %f [deg] or %f [rad]", angle_beam_obs/3.1415*180.0, angle_beam_obs);
+    //ROS_INFO("d_step is %d", d_step);
     //ROS_INFO("Middle beam has angle %f", laser_scan_.angle_min + num_readings/2 * laser_scan_.angle_increment);
 
+    //! For visualizing the virtual wall
     sensor_msgs::LaserScan wall_msg;
-    wall_msg.angle_min = laser_scan_.angle_min + std::max(index_beam_obst - d_step,0) * laser_scan_.angle_increment;
-    wall_msg.header = laser_scan_.header;
-    wall_msg.angle_increment = laser_scan_.angle_increment;
-    wall_msg.time_increment = laser_scan_.time_increment;
-    wall_msg.scan_time = laser_scan_.scan_time;
-    wall_msg.range_min = laser_scan_.range_min;
-    wall_msg.range_max = laser_scan_.range_max;
-    //wall_msg.header.stamp = ros::Time::now();
+    if (visualization_) {
+        wall_msg = laser_scan_;
+        wall_msg.ranges.clear();
+        wall_msg.intensities.clear();
+        wall_msg.angle_min = laser_scan_.angle_min + std::max(index_beam_target_pos - d_step,0) * laser_scan_.angle_increment;
+        wall_msg.angle_max = laser_scan_.angle_min + std::min(num_readings, index_beam_target_pos + d_step) * laser_scan_.angle_increment;
+    }
 
-    // TODO: use driving direction here, not just middle beam
     // TODO: virtual force: decrease/increase y-coordinate goal using goal_.setY(SOME_GAIN*(goal_.getY()-dy));
 
+    //! Check for objects in front of virtual wall
     bool path_free = true;
-
-    for (int j = std::max(index_beam_obst - d_step,0); j < index_beam_obst + d_step; ++j) {
+    for (int j = std::max(index_beam_target_pos - d_step,0); j < index_beam_target_pos + d_step; ++j) {
         if (j < num_readings) {
             double dist_to_obstacle = laser_scan_.ranges[j];
 
@@ -204,20 +185,15 @@ bool CarrotPlanner::isClearLine(){
 
             if (dist_to_obstacle > 0.01 && dist_to_obstacle < DISTANCE_VIRTUAL_WALL) {
 
-                // REMEMBER: correction is only needed if the angle is below the threshold
-                ROS_WARN("Object too close: %f [m]", dist_to_obstacle);
                 double angle = laser_scan_.angle_min + j * laser_scan_.angle_increment;
-                ROS_INFO(" angle beam (%d/%d) is %f", j, num_readings, angle/3.14159*180.0);
                 double dy = sin(angle)*dist_to_obstacle;
-                ROS_INFO(" dy = %f", dy);
-
+                ROS_WARN("Object too close: %f [m], dy = %f", dist_to_obstacle, dy);
                 path_free = false;
             }
         }
     }
 
-    wall_msg.angle_max = laser_scan_.angle_min + std::min(num_readings, index_beam_obst + d_step) * laser_scan_.angle_increment;
-    virt_wall_pub_.publish(wall_msg);
+    if (visualization_) virt_wall_pub_.publish(wall_msg);
 
     return path_free;
 }
@@ -279,14 +255,9 @@ void CarrotPlanner::determineDesiredVelocity(double dt, geometry_msgs::Twist &cm
     ROS_DEBUG(" vel_diff = (%f,%f,%f), acc_desired = %f", vel_diff.getX(), vel_diff.getY(), vel_diff.getZ(), acc_desired);
     if (acc_desired > MAX_ACC) {
         tf::vector3TFToMsg(current_vel_trans + vel_diff.normalized() * MAX_ACC * dt, cmd_vel.linear);
-    } /*else if (sqrt(error_lin.getX()*error_lin.getX() + error_lin.getY()*error_lin.getY()) < 1.5) {
-		// Lower maximum velocity if robot is nearby
-		tf::vector3TFToMsg(vel_desired*1.0, cmd_vel.linear);
     } else {
-        tf::vector3TFToMsg(vel_desired, cmd_vel.linear);
-    }*/
-    else {
-        //! Reduce max velocity based on distance
+
+        //! P-action: scale velocity with distance
         double distance = sqrt(error_lin.getX()*error_lin.getX() + error_lin.getY()*error_lin.getY());
         vel_desired = std::min(vel_desired, distance * 2.0/3.0 * vel_desired);
         tf::vector3TFToMsg(vel_desired, cmd_vel.linear);
@@ -299,6 +270,11 @@ void CarrotPlanner::determineDesiredVelocity(double dt, geometry_msgs::Twist &cm
     cmd_vel.angular.x = 0;
     cmd_vel.angular.y = 0;
     cmd_vel.angular.z = determineReference(error_ang, current_vel.angular.z, MAX_VEL_THETA, MAX_ACC_THETA, dt);
+
+    //! P-action: scale angular velocity with distance
+    cmd_vel.angular.z = std::min(cmd_vel.angular.z, error_ang*4.0/3.1415*cmd_vel.angular.z);
+    ROS_INFO("Adapted angular velocity to %f", cmd_vel.angular.z);
+
     ROS_DEBUG("Final velocity command: (x:%f, y:%f, th:%f)", cmd_vel.linear.x, cmd_vel.linear.y, cmd_vel.angular.z);
 }
 
@@ -395,7 +371,7 @@ double CarrotPlanner::determineReference(double error_x, double vel, double max_
     }
 
     vel = dir * vel_mag;
-    ROS_INFO("Rotational velocity is %f", vel);
+    ROS_DEBUG("Rotational velocity is %f", vel);
 
     return vel;
 }

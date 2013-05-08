@@ -76,6 +76,9 @@ private:
     sensor_msgs::LaserScan laser_scan_;
     bool laser_data_available_;
 
+    //! Visualization
+    bool visualization_;
+
 };
 
 #endif
