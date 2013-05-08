@@ -13,7 +13,7 @@ CarrotPlanner::CarrotPlanner(const std::string &name) :
     private_nh.param("gain", GAIN, 0.9);
     private_nh.param("min_angle", MIN_ANGLE, 3.14159/14);
     private_nh.param("dist_vir_wall", DISTANCE_VIRTUAL_WALL, 0.50);
-    private_nh.param("radius_robot", RADIUS_ROBOT, 0.5);
+    private_nh.param("radius_robot", RADIUS_ROBOT, 0.55);
 
     //! Publishers
     if (visualization_) {
@@ -144,13 +144,12 @@ bool CarrotPlanner::isClearLine(){
         ROS_WARN("Path check in carrot planner - transformPosition(): %s",ex.what());
     }
     
+    //! Get number of beams
+    int num_readings = laser_scan_.ranges.size();
 
     //! Calculate the index corresponding to the beam that intersects with the target position
     int num_incr = angle_goal/laser_scan_.angle_increment; // Both in rad
     int index_beam_target_pos = num_readings/2 + num_incr;
-
-    //! Get number of beams
-    int num_readings = laser_scan_.ranges.size();
 
     //! Check for collisions with virtual wall in front of the robot
     double dth = atan2(RADIUS_ROBOT, DISTANCE_VIRTUAL_WALL);
@@ -272,8 +271,10 @@ void CarrotPlanner::determineDesiredVelocity(double dt, geometry_msgs::Twist &cm
     cmd_vel.angular.z = determineReference(error_ang, current_vel.angular.z, MAX_VEL_THETA, MAX_ACC_THETA, dt);
 
     //! P-action: scale angular velocity with distance
-    cmd_vel.angular.z = std::min(cmd_vel.angular.z, error_ang*4.0/3.1415*cmd_vel.angular.z);
-    ROS_INFO("Adapted angular velocity to %f", cmd_vel.angular.z);
+    double angular_vel_calc = cmd_vel.angular.z;
+    cmd_vel.angular.z = std::min(angular_vel_calc, fabs(error_ang*4.0/3.1415*angular_vel_calc));
+    if (angular_vel_calc < 0) cmd_vel.angular.z *= -1;
+    ROS_INFO("Adapted angular velocity from %f to %f for theta is %f", angular_vel_calc, cmd_vel.angular.z, goal_angle_);
 
     ROS_DEBUG("Final velocity command: (x:%f, y:%f, th:%f)", cmd_vel.linear.x, cmd_vel.linear.y, cmd_vel.angular.z);
 }
