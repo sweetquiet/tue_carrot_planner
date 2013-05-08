@@ -13,7 +13,7 @@ CarrotPlanner::CarrotPlanner(const std::string &name) :
     private_nh.param("gain", GAIN, 0.9);
     private_nh.param("min_angle", MIN_ANGLE, 3.14159/14);
     private_nh.param("dist_vir_wall", DISTANCE_VIRTUAL_WALL, 0.50);
-    private_nh.param("radius_robot", RADIUS_ROBOT, 0.25);
+    private_nh.param("radius_robot", RADIUS_ROBOT, 0.5);
 
     //! Publishers
     virt_wall_pub_ = private_nh.advertise<sensor_msgs::LaserScan>("virtual_wall", 1);
@@ -22,11 +22,15 @@ CarrotPlanner::CarrotPlanner(const std::string &name) :
 
     //! Listen to laser data
     laser_scan_sub_ = private_nh.subscribe("/base_scan", 10, &CarrotPlanner::laserScanCallBack, this);
+    
+    tf_listener_ = new tf::TransformListener();
 
 }
 
 
 CarrotPlanner::~CarrotPlanner() {
+	
+	delete tf_listener_;
 }
 
 
@@ -86,7 +90,7 @@ bool CarrotPlanner::computeVelocityCommand(geometry_msgs::Twist &cmd_vel){
         dt = time - t_last_cmd_vel_;
     }
     t_last_cmd_vel_ = time;
-    ROS_IDEBUG("Goal before is clear line (%f,%f,%f)", goal_.getX(), goal_.getY(), goal_angle_);
+    ROS_DEBUG("Goal before is clear line (%f,%f,%f)", goal_.getX(), goal_.getY(), goal_angle_);
 
     //! Check if the path is free
     if(!isClearLine()) {
@@ -128,10 +132,25 @@ bool CarrotPlanner::isClearLine(){
 
     //! Get number of beams and resolution LRF from most recent laser message
     int num_readings = laser_scan_.ranges.size();
+    
+    //! Transform goal angle to frame base laser
+    double angle_goal = goal_angle_;
+    tf::Stamped<tf::Point> goal_pos(tf::Point(goal_.getX(), goal_.getY(), 0), ros::Time(), tracking_frame_);
+    try{
+        tf::Stamped<tf::Point> goal_pos_trans;
+        tf_listener_->transformPoint("/front_laser", goal_pos, goal_pos_trans);
+        angle_goal = atan2(goal_pos_trans.getY(), goal_pos_trans.getX());
 
+    } catch (tf::TransformException ex){
+        ROS_WARN("Path check in carrot planner - transformPosition(): %s",ex.what());
+    }
+    
+    ROS_INFO("Changed angle from %f to %f", goal_angle_, angle_goal);
 
-    int num_incr = goal_angle_/laser_scan_.angle_increment; // Both in rad
-    int index_beam_obst = num_readings/2 + num_incr;
+    //! Calculate the index corresponding to the beam
+    int num_incr = angle_goal/laser_scan_.angle_increment; // Both in rad
+    //int offset = 3.1415/2.0/laser_scan_.angle_increment;
+    int index_beam_obst = num_readings/2 + num_incr;// - offset;
 
     /*
     int width = 15;
@@ -156,19 +175,27 @@ bool CarrotPlanner::isClearLine(){
     int d_step = dth/laser_scan_.angle_increment;
     //int beam_middle = num_readings/2;
 
-    ROS_INFO("Angle virtual wall is %f [deg]", 2*dth/3.1415*180.0);
+    double angle_beam_obs = laser_scan_.angle_min + index_beam_obst * laser_scan_.angle_increment;
+    ROS_INFO("Angle beam obstable is %f [deg] or %f [rad]", angle_beam_obs/3.1415*180.0, angle_beam_obs);
+    ROS_INFO("d_step is %d", d_step);
+    //ROS_INFO("Middle beam has angle %f", laser_scan_.angle_min + num_readings/2 * laser_scan_.angle_increment);
 
     sensor_msgs::LaserScan wall_msg;
-    wall_msg.angle_min = laser_scan_.angle_min + std::min(index_beam_obst - d_step,0) * laser_scan_.angle_increment;
+    wall_msg.angle_min = laser_scan_.angle_min + std::max(index_beam_obst - d_step,0) * laser_scan_.angle_increment;
     wall_msg.header = laser_scan_.header;
-    wall_msg.header.stamp = ros::Time::now();
+    wall_msg.angle_increment = laser_scan_.angle_increment;
+    wall_msg.time_increment = laser_scan_.time_increment;
+    wall_msg.scan_time = laser_scan_.scan_time;
+    wall_msg.range_min = laser_scan_.range_min;
+    wall_msg.range_max = laser_scan_.range_max;
+    //wall_msg.header.stamp = ros::Time::now();
 
     // TODO: use driving direction here, not just middle beam
     // TODO: virtual force: decrease/increase y-coordinate goal using goal_.setY(SOME_GAIN*(goal_.getY()-dy));
 
     bool path_free = true;
 
-    for (int j = std::min(index_beam_obst - d_step,0); j < index_beam_obst + d_step; ++j) {
+    for (int j = std::max(index_beam_obst - d_step,0); j < index_beam_obst + d_step; ++j) {
         if (j < num_readings) {
             double dist_to_obstacle = laser_scan_.ranges[j];
 
@@ -189,6 +216,7 @@ bool CarrotPlanner::isClearLine(){
         }
     }
 
+    wall_msg.angle_max = laser_scan_.angle_min + std::min(num_readings, index_beam_obst + d_step) * laser_scan_.angle_increment;
     virt_wall_pub_.publish(wall_msg);
 
     return path_free;

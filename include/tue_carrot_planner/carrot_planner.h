@@ -5,6 +5,7 @@
 #include <geometry_msgs/Twist.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <tf/transform_datatypes.h>
+#include <tf/transform_listener.h>
 #include <visualization_msgs/Marker.h>
 #include <sensor_msgs/LaserScan.h>
 
@@ -55,8 +56,9 @@ private:
     double DISTANCE_VIRTUAL_WALL;
     double RADIUS_ROBOT;
 
-    //! Tracking frame
+    //! Tracking frame and transform listener
     std::string tracking_frame_;
+    tf::TransformListener* tf_listener_;
 
     //! Goal position and angle
     tf::Vector3 goal_;
