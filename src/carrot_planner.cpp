@@ -70,13 +70,21 @@ bool CarrotPlanner::setGoal(geometry_msgs::PoseStamped &goal){
     goal_.setX(goal.pose.position.x);
     goal_.setY(goal.pose.position.y);
     goal_.setZ(goal.pose.position.z);
+
+    // TODO: Check if this makes sense
+    //! Check for maximum angle, if needed move y-position goal such that truncated angle matches desired (x,y)-position
     if (goal_angle_ > MAX_ANGLE) {
         ROS_WARN("Angle %f > %f: will be truncated", goal_angle_, MAX_ANGLE);
+        ROS_WARN("CHECK IF THIS IS DESIRED: Update y from %f to %f", goal_.getY(), goal.pose.position.x*tan(MAX_ANGLE));
         goal_angle_ = MAX_ANGLE;
+        goal_.setY(goal.pose.position.x*tan(MAX_ANGLE));
     } else if (goal_angle_ < -MAX_ANGLE) {
 		ROS_WARN("Angle %f < %f: will be truncated", goal_angle_, -MAX_ANGLE);
+        ROS_WARN("CHECK IF THIS IS DESIRED: Update y from %f to %f", goal_.getY(), goal.pose.position.x*tan(-MAX_ANGLE));
         goal_angle_ = -MAX_ANGLE;
+        goal_.setY(-goal.pose.position.x*tan(MAX_ANGLE));
 	}
+
     ROS_DEBUG("CarrotPlanner::setGoal: (x,y,th) = (%f,%f,%f)", goal_.getX(), goal_.getY(), goal_angle_);
 
     //! Publish marker
