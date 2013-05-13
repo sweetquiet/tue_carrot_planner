@@ -8,12 +8,12 @@ CarrotPlanner::CarrotPlanner(const std::string &name) :
     //! Get parameters from the ROS parameter server
     private_nh.param("max_vel_translation", MAX_VEL, 0.5);
     private_nh.param("max_acc_translation", MAX_ACC, 0.15);
-    private_nh.param("max_vel_rotation", MAX_VEL_THETA, 0.3);
-    private_nh.param("max_acc_rotation", MAX_ACC_THETA, 0.25);
+    private_nh.param("max_vel_rotation", MAX_VEL_THETA, 0.4);
+    private_nh.param("max_acc_rotation", MAX_ACC_THETA, 0.35);
     private_nh.param("gain", GAIN, 0.9);
-    private_nh.param("min_angle", MIN_ANGLE, 3.14159/14);
+    private_nh.param("max_angle", MAX_ANGLE, 1.0/4.0*3.14159);
     private_nh.param("dist_vir_wall", DISTANCE_VIRTUAL_WALL, 0.50);
-    private_nh.param("radius_robot", RADIUS_ROBOT, 0.55);
+    private_nh.param("radius_robot", RADIUS_ROBOT, 0.65);
 
     //! Publishers
     if (visualization_) {
@@ -70,10 +70,13 @@ bool CarrotPlanner::setGoal(geometry_msgs::PoseStamped &goal){
     goal_.setX(goal.pose.position.x);
     goal_.setY(goal.pose.position.y);
     goal_.setZ(goal.pose.position.z);
-    //if (fabs(goal_angle_) < MIN_ANGLE) {
-    //    ROS_WARN("Angle %f < %f: will be ignored", goal_angle_, MIN_ANGLE);
-    //    goal_angle_ = 0;
-    //}
+    if (goal_angle_ > MAX_ANGLE) {
+        ROS_WARN("Angle %f > %f: will be truncated", goal_angle_, MAX_ANGLE);
+        goal_angle_ = MAX_ANGLE;
+    } else if (goal_angle_ < -MAX_ANGLE) {
+		ROS_WARN("Angle %f < %f: will be truncated", goal_angle_, -MAX_ANGLE);
+        goal_angle_ = -MAX_ANGLE;
+	}
     ROS_DEBUG("CarrotPlanner::setGoal: (x,y,th) = (%f,%f,%f)", goal_.getX(), goal_.getY(), goal_angle_);
 
     //! Publish marker
@@ -272,7 +275,7 @@ void CarrotPlanner::determineDesiredVelocity(double dt, geometry_msgs::Twist &cm
 
     //! P-action: scale angular velocity with distance
     double angular_vel_calc = cmd_vel.angular.z;
-    cmd_vel.angular.z = std::min(angular_vel_calc, fabs(error_ang*4.0/3.1415*angular_vel_calc));
+    cmd_vel.angular.z = std::min(fabs(angular_vel_calc), fabs(error_ang*6.0/3.1415*angular_vel_calc));
     if (angular_vel_calc < 0) cmd_vel.angular.z *= -1;
     ROS_INFO("Adapted angular velocity from %f to %f for theta is %f", angular_vel_calc, cmd_vel.angular.z, goal_angle_);
 

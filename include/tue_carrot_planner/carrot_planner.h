@@ -52,7 +52,7 @@ private:
     double MAX_VEL_THETA;
     double MAX_ACC_THETA;
     double GAIN;
-    double MIN_ANGLE;
+    double MAX_ANGLE;
     double DISTANCE_VIRTUAL_WALL;
     double RADIUS_ROBOT;
 
