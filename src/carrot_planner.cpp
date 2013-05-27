@@ -11,8 +11,8 @@ CarrotPlanner::CarrotPlanner(const std::string &name) :
     private_nh.param("max_vel_rotation", MAX_VEL_THETA, 0.4);
     private_nh.param("max_acc_rotation", MAX_ACC_THETA, 0.35);
     private_nh.param("gain", GAIN, 0.9);
-    private_nh.param("max_angle", MAX_ANGLE, 1.0/4.0*3.14159);
-    private_nh.param("dist_vir_wall", DISTANCE_VIRTUAL_WALL, 0.50);
+    private_nh.param("max_angle", MAX_ANGLE, 1.0/2.0*3.14159);
+    private_nh.param("dist_vir_wall", DISTANCE_VIRTUAL_WALL, 0.65);
     private_nh.param("radius_robot", RADIUS_ROBOT, 0.65);
 
     //! Publishers
@@ -75,14 +75,14 @@ bool CarrotPlanner::setGoal(geometry_msgs::PoseStamped &goal){
     //! Check for maximum angle, if needed move y-position goal such that truncated angle matches desired (x,y)-position
     if (goal_angle_ > MAX_ANGLE) {
         ROS_WARN("Angle %f > %f: will be truncated", goal_angle_, MAX_ANGLE);
-        ROS_WARN("CHECK IF THIS IS DESIRED: Update y from %f to %f", goal_.getY(), goal.pose.position.x*tan(MAX_ANGLE));
-        goal_angle_ = MAX_ANGLE;
-        goal_.setY(goal.pose.position.x*tan(MAX_ANGLE));
+        //ROS_WARN("CHECK IF THIS IS DESIRED: Update y from %f to %f", goal_.getY(), goal.pose.position.x*tan(MAX_ANGLE));
+        //goal_angle_ = MAX_ANGLE;
+        //goal_.setY(goal.pose.position.x*tan(MAX_ANGLE));
     } else if (goal_angle_ < -MAX_ANGLE) {
 		ROS_WARN("Angle %f < %f: will be truncated", goal_angle_, -MAX_ANGLE);
-        ROS_WARN("CHECK IF THIS IS DESIRED: Update y from %f to %f", goal_.getY(), goal.pose.position.x*tan(-MAX_ANGLE));
-        goal_angle_ = -MAX_ANGLE;
-        goal_.setY(-goal.pose.position.x*tan(MAX_ANGLE));
+        //ROS_WARN("CHECK IF THIS IS DESIRED: Update y from %f to %f", goal_.getY(), goal.pose.position.x*tan(-MAX_ANGLE));
+        //goal_angle_ = -MAX_ANGLE;
+        //goal_.setY(-goal.pose.position.x*tan(MAX_ANGLE));
 	}
 
     ROS_DEBUG("CarrotPlanner::setGoal: (x,y,th) = (%f,%f,%f)", goal_.getX(), goal_.getY(), goal_angle_);
@@ -193,11 +193,11 @@ bool CarrotPlanner::isClearLine(){
             wall_msg.ranges.push_back(DISTANCE_VIRTUAL_WALL);
             wall_msg.intensities.push_back(100);
 
-            if (dist_to_obstacle > 0.01 && dist_to_obstacle < DISTANCE_VIRTUAL_WALL) {
+            if (dist_to_obstacle > 0.001 && dist_to_obstacle < DISTANCE_VIRTUAL_WALL) {
 
                 double angle = laser_scan_.angle_min + j * laser_scan_.angle_increment;
                 double dy = sin(angle)*dist_to_obstacle;
-                ROS_WARN("Object too close: %f [m], dy = %f", dist_to_obstacle, dy);
+                if (path_free) ROS_WARN("Object too close: %f [m], dy = %f", dist_to_obstacle, dy);
                 path_free = false;
             }
         }
@@ -283,7 +283,7 @@ void CarrotPlanner::determineDesiredVelocity(double dt, geometry_msgs::Twist &cm
 
     //! P-action: scale angular velocity with distance
     double angular_vel_calc = cmd_vel.angular.z;
-    cmd_vel.angular.z = std::min(fabs(angular_vel_calc), fabs(error_ang*6.0/3.1415*angular_vel_calc));
+    cmd_vel.angular.z = std::min(fabs(angular_vel_calc), fabs(error_ang*10.0/3.1415*angular_vel_calc));
     if (angular_vel_calc < 0) cmd_vel.angular.z *= -1;
     ROS_INFO("Adapted angular velocity from %f to %f for theta is %f", angular_vel_calc, cmd_vel.angular.z, goal_angle_);
 
