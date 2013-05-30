@@ -144,23 +144,28 @@ bool CarrotPlanner::isClearLine(){
     }
     
     //! Transform goal angle to frame base laser
+    // TODO: This causes unstable behavior
     double angle_goal = goal_angle_;
+    /*
     tf::Stamped<tf::Point> goal_pos(tf::Point(goal_.getX(), goal_.getY(), 0), ros::Time(), tracking_frame_);
     try{
         tf::Stamped<tf::Point> goal_pos_trans;
         tf_listener_->transformPoint("/front_laser", goal_pos, goal_pos_trans);
         angle_goal = atan2(goal_pos_trans.getY(), goal_pos_trans.getX());
+        ROS_INFO("After transformation: updated angle from %f to %f", goal_angle_, angle_goal);
+        
 
     } catch (tf::TransformException ex){
         ROS_WARN("Path check in carrot planner - transformPosition(): %s",ex.what());
-    }
+    }*/
     
     //! Get number of beams
     int num_readings = laser_scan_.ranges.size();
 
     //! Calculate the index corresponding to the beam that intersects with the target position
     int num_incr = angle_goal/laser_scan_.angle_increment; // Both in rad
-    int index_beam_target_pos = num_readings/2 + num_incr;
+    ROS_DEBUG("wall: angle %f corresponds to %d increments", angle_goal, num_incr);
+    int index_beam_target_pos = std::max(0, num_readings/2 + num_incr);
 
     //! Check for collisions with virtual wall in front of the robot
     double dth = atan2(RADIUS_ROBOT, DISTANCE_VIRTUAL_WALL);
@@ -178,8 +183,11 @@ bool CarrotPlanner::isClearLine(){
         wall_msg = laser_scan_;
         wall_msg.ranges.clear();
         wall_msg.intensities.clear();
+        ROS_DEBUG("wall: index beam is %d, d_step is %d, num_readings is %d", index_beam_target_pos, d_step, num_readings);
+        ROS_DEBUG("wall: offsets are %d and %d", std::max(index_beam_target_pos - d_step,0), std::min(num_readings, index_beam_target_pos + d_step));
         wall_msg.angle_min = laser_scan_.angle_min + std::max(index_beam_target_pos - d_step,0) * laser_scan_.angle_increment;
         wall_msg.angle_max = laser_scan_.angle_min + std::min(num_readings, index_beam_target_pos + d_step) * laser_scan_.angle_increment;
+        ROS_DEBUG("wall: from angle %f to %f", wall_msg.angle_min, wall_msg.angle_max);
     }
 
     // TODO: virtual force: decrease/increase y-coordinate goal using goal_.setY(SOME_GAIN*(goal_.getY()-dy));
@@ -190,8 +198,10 @@ bool CarrotPlanner::isClearLine(){
         if (j < num_readings) {
             double dist_to_obstacle = laser_scan_.ranges[j];
 
-            wall_msg.ranges.push_back(DISTANCE_VIRTUAL_WALL);
-            wall_msg.intensities.push_back(100);
+			if (visualization_) {
+				wall_msg.ranges.push_back(DISTANCE_VIRTUAL_WALL);
+				wall_msg.intensities.push_back(100);
+			}
 
             if (dist_to_obstacle > 0.001 && dist_to_obstacle < DISTANCE_VIRTUAL_WALL) {
 
