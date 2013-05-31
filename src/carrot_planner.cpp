@@ -13,7 +13,7 @@ CarrotPlanner::CarrotPlanner(const std::string &name) :
     private_nh.param("gain", GAIN, 0.9);
     private_nh.param("max_angle", MAX_ANGLE, 1.0/2.0*3.14159);
     private_nh.param("dist_vir_wall", DISTANCE_VIRTUAL_WALL, 0.65);
-    private_nh.param("radius_robot", RADIUS_ROBOT, 0.65);
+    private_nh.param("radius_robot", RADIUS_ROBOT, 0.5);
 
     //! Publishers
     if (visualization_) {
@@ -47,7 +47,7 @@ bool CarrotPlanner::MoveToGoal(geometry_msgs::PoseStamped &goal){
         //! Compute velocity command and publish this command
         if(computeVelocityCommand(cmd_vel)) {
 
-            ROS_INFO("Publishing velocity command: (x,y,th) = (%f.%f,%f)", cmd_vel.linear.x, cmd_vel.linear.y, cmd_vel.angular.z);
+            ROS_DEBUG("Publishing velocity command: (x,y,th) = (%f.%f,%f)", cmd_vel.linear.x, cmd_vel.linear.y, cmd_vel.angular.z);
             cmd_vel_pub_.publish(cmd_vel);
 
             return true;
@@ -282,7 +282,7 @@ void CarrotPlanner::determineDesiredVelocity(double dt, geometry_msgs::Twist &cm
         vel_desired = std::min(vel_desired, distance * 2.0/3.0 * vel_desired);
         tf::vector3TFToMsg(vel_desired, cmd_vel.linear);
         if (std::min(distance * 2.0/3.0, 1.0) < 1.0) {
-            ROS_INFO("Lowered velocity by a factor %f", std::min(distance * 2.0/3.0, 1.0));
+            ROS_DEBUG("Lowered velocity by a factor %f", std::min(distance * 2.0/3.0, 1.0));
         }
     }
 
@@ -295,7 +295,7 @@ void CarrotPlanner::determineDesiredVelocity(double dt, geometry_msgs::Twist &cm
     double angular_vel_calc = cmd_vel.angular.z;
     cmd_vel.angular.z = std::min(fabs(angular_vel_calc), fabs(error_ang*10.0/3.1415*angular_vel_calc));
     if (angular_vel_calc < 0) cmd_vel.angular.z *= -1;
-    ROS_INFO("Adapted angular velocity from %f to %f for theta is %f", angular_vel_calc, cmd_vel.angular.z, goal_angle_);
+    ROS_DEBUG("Adapted angular velocity from %f to %f for theta is %f", angular_vel_calc, cmd_vel.angular.z, goal_angle_);
 
     ROS_DEBUG("Final velocity command: (x:%f, y:%f, th:%f)", cmd_vel.linear.x, cmd_vel.linear.y, cmd_vel.angular.z);
 }
