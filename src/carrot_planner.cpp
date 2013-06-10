@@ -8,6 +8,7 @@ CarrotPlanner::CarrotPlanner(const std::string &name) :
     //! Get parameters from the ROS parameter server
     private_nh.param("max_vel_translation", MAX_VEL, 0.5);
     private_nh.param("max_acc_translation", MAX_ACC, 0.15);
+    private_nh.param("min_vel_rotation", MIN_VEL_THETA, 0.08);
     private_nh.param("max_vel_rotation", MAX_VEL_THETA, 0.4);
     private_nh.param("max_acc_rotation", MAX_ACC_THETA, 0.35);
     private_nh.param("gain", GAIN, 0.9);
@@ -294,6 +295,10 @@ void CarrotPlanner::determineDesiredVelocity(double dt, geometry_msgs::Twist &cm
     //! P-action: scale angular velocity with distance
     double angular_vel_calc = cmd_vel.angular.z;
     cmd_vel.angular.z = std::min(fabs(angular_vel_calc), fabs(error_ang*10.0/3.1415*angular_vel_calc));
+    
+    //! Minimum angular velocity: otherwise ignoring small angles
+    cmd_vel.angular.z = std::max(cmd_vel.angular.z, MIN_VEL_THETA);
+    
     if (angular_vel_calc < 0) cmd_vel.angular.z *= -1;
     ROS_DEBUG("Adapted angular velocity from %f to %f for theta is %f", angular_vel_calc, cmd_vel.angular.z, goal_angle_);
 
