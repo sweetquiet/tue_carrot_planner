@@ -51,6 +51,7 @@ private:
     double MAX_ACC;
     double MAX_VEL_THETA;
     double MAX_ACC_THETA;
+    double MIN_VEL_THETA;
     double GAIN;
     double MAX_ANGLE;
     double DISTANCE_VIRTUAL_WALL;
