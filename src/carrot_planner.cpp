@@ -1,19 +1,19 @@
 #include "tue_carrot_planner/carrot_planner.h"
 
-CarrotPlanner::CarrotPlanner(const std::string &name) :
+CarrotPlanner::CarrotPlanner(const std::string &name, double max_vel_lin, double max_vel_rot, double dist_wall) :
     tracking_frame_("/base_link"), t_last_cmd_vel_(ros::Time::now().toSec()), laser_data_available_(false), visualization_(true) {
 
     ros::NodeHandle private_nh("~/" + name);
 
     //! Get parameters from the ROS parameter server
-    private_nh.param("max_vel_translation", MAX_VEL, 0.5);
+    private_nh.param("max_vel_translation", MAX_VEL, max_vel_lin);
     private_nh.param("max_acc_translation", MAX_ACC, 0.15);
     private_nh.param("min_vel_rotation", MIN_VEL_THETA, 0.08);
-    private_nh.param("max_vel_rotation", MAX_VEL_THETA, 0.4);
+    private_nh.param("max_vel_rotation", MAX_VEL_THETA, max_vel_rot);
     private_nh.param("max_acc_rotation", MAX_ACC_THETA, 0.35);
     private_nh.param("gain", GAIN, 0.9);
     private_nh.param("max_angle", MAX_ANGLE, 1.0/2.0*3.14159);
-    private_nh.param("dist_vir_wall", DISTANCE_VIRTUAL_WALL, 0.65);
+    private_nh.param("dist_vir_wall", DISTANCE_VIRTUAL_WALL, dist_wall);
     private_nh.param("radius_robot", RADIUS_ROBOT, 0.5);
 
     //! Publishers

@@ -14,7 +14,7 @@ class CarrotPlanner
 
 public:
 
-    CarrotPlanner(const std::string& name);
+    CarrotPlanner(const std::string &name, double max_vel_lin = 0.5, double max_vel_rot = 0.4, double dist_wall = 0.65);
 
     ~CarrotPlanner();
 
