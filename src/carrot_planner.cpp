@@ -15,6 +15,8 @@ CarrotPlanner::CarrotPlanner(const std::string &name, double max_vel_lin, double
     private_nh.param("max_angle", MAX_ANGLE, 1.0/2.0*3.14159);
     private_nh.param("dist_vir_wall", DISTANCE_VIRTUAL_WALL, dist_wall);
     private_nh.param("radius_robot", RADIUS_ROBOT, 0.5);
+    private_nh.param("min_angle_zero_trans", MIN_ANGLE_ZERO_TRANS, 10.0/180.0*3.14159);
+
 
     //! Publishers
     if (visualization_) {
@@ -75,18 +77,25 @@ bool CarrotPlanner::setGoal(geometry_msgs::PoseStamped &goal){
     // TODO: Check if this makes sense
     //! Check for maximum angle, if needed move y-position goal such that truncated angle matches desired (x,y)-position
     if (goal_angle_ > MAX_ANGLE) {
-        ROS_WARN("Angle %f > %f: will be truncated", goal_angle_, MAX_ANGLE);
+        ROS_WARN("Angle %f > %f (no consequences)", goal_angle_, MAX_ANGLE);
         //ROS_WARN("CHECK IF THIS IS DESIRED: Update y from %f to %f", goal_.getY(), goal.pose.position.x*tan(MAX_ANGLE));
         //goal_angle_ = MAX_ANGLE;
         //goal_.setY(goal.pose.position.x*tan(MAX_ANGLE));
     } else if (goal_angle_ < -MAX_ANGLE) {
-		ROS_WARN("Angle %f < %f: will be truncated", goal_angle_, -MAX_ANGLE);
+        ROS_WARN("Angle %f < %f (no consequences)", goal_angle_, -MAX_ANGLE);
         //ROS_WARN("CHECK IF THIS IS DESIRED: Update y from %f to %f", goal_.getY(), goal.pose.position.x*tan(-MAX_ANGLE));
         //goal_angle_ = -MAX_ANGLE;
         //goal_.setY(-goal.pose.position.x*tan(MAX_ANGLE));
 	}
 
     ROS_DEBUG("CarrotPlanner::setGoal: (x,y,th) = (%f,%f,%f)", goal_.getX(), goal_.getY(), goal_angle_);
+
+    //! Avoid nervous rotations
+    if (goal_.getX() == 0 && goal_.getY() == 0 && goal_angle_ < MIN_ANGLE_ZERO_TRANS)
+    {
+        ROS_INFO("Carrotplanner will ignore small angle %f", goal_angle_);
+        goal_angle_ = 0;
+    }
 
     //! Publish marker
     if (visualization_) publishCarrot(goal_, carrot_pub_);

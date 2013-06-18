@@ -56,6 +56,7 @@ private:
     double MAX_ANGLE;
     double DISTANCE_VIRTUAL_WALL;
     double RADIUS_ROBOT;
+    double MIN_ANGLE_ZERO_TRANS;
 
     //! Tracking frame and transform listener
     std::string tracking_frame_;
