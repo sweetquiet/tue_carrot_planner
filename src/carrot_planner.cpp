@@ -91,7 +91,7 @@ bool CarrotPlanner::setGoal(geometry_msgs::PoseStamped &goal){
     ROS_DEBUG("CarrotPlanner::setGoal: (x,y,th) = (%f,%f,%f)", goal_.getX(), goal_.getY(), goal_angle_);
 
     //! Avoid nervous rotations
-    if (goal_.getX() == 0 && goal_.getY() == 0 && goal_angle_ < MIN_ANGLE_ZERO_TRANS)
+    if (goal_.getX() == 0 && goal_.getY() == 0 && goal_angle_ < MIN_ANGLE_ZERO_TRANS && goal_angle_ > -MIN_ANGLE_ZERO_TRANS)
     {
         ROS_INFO("Carrotplanner will ignore small angle %f", goal_angle_);
         goal_angle_ = 0;
