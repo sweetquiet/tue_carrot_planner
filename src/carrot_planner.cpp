@@ -51,6 +51,12 @@ bool CarrotPlanner::MoveToGoal(geometry_msgs::PoseStamped &goal){
         if(computeVelocityCommand(cmd_vel)) {
 
             ROS_DEBUG("Publishing velocity command: (x,y,th) = (%f.%f,%f)", cmd_vel.linear.x, cmd_vel.linear.y, cmd_vel.angular.z);
+            
+            if (goal_.getX() == 0 && goal_.getY() == 0 && goal_angle_ == 0) {
+                cmd_vel.linear.x = 0;
+                cmd_vel.linear.y = 0;
+                cmd_vel.angular.z = 0;
+            }
             cmd_vel_pub_.publish(cmd_vel);
 
             return true;
@@ -96,6 +102,8 @@ bool CarrotPlanner::setGoal(geometry_msgs::PoseStamped &goal){
     //    ROS_INFO("Carrotplanner will ignore small angle %f", goal_angle_);
     //    goal_angle_ = 0;
     //}
+    
+    //ROS_INFO("tue_carrot_planner: request to move towards (x,y,theta) = (%f,%f,%f)", goal.pose.position.x, goal.pose.position.y, goal_angle_);
 
     //! Publish marker
     if (visualization_) publishCarrot(goal_, carrot_pub_);
@@ -117,7 +125,7 @@ bool CarrotPlanner::computeVelocityCommand(geometry_msgs::Twist &cmd_vel){
 
     //! Check if the path is free
     if(!isClearLine()) {
-        ROS_WARN("Path is not free: only consider rotation");
+        ROS_DEBUG("Path is not free: only consider rotation");
         setZeroVelocity(cmd_vel);
         goal_.setX(0);
         goal_.setY(0);
@@ -217,7 +225,7 @@ bool CarrotPlanner::isClearLine(){
 
                 double angle = laser_scan_.angle_min + j * laser_scan_.angle_increment;
                 double dy = sin(angle)*dist_to_obstacle;
-                if (path_free) ROS_WARN("Object too close: %f [m], dy = %f", dist_to_obstacle, dy);
+                if (path_free) ROS_DEBUG("Object too close: %f [m], dy = %f", dist_to_obstacle, dy);
                 path_free = false;
             }
         }
