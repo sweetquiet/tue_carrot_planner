@@ -1,7 +1,7 @@
 #include "tue_carrot_planner/carrot_planner.h"
 
 CarrotPlanner::CarrotPlanner(const std::string &name, double max_vel_lin, double max_vel_rot, double dist_wall) :
-    tracking_frame_("/base_link"), t_last_cmd_vel_(ros::Time::now().toSec()), laser_data_available_(false), visualization_(true) {
+    tracking_frame_("/amigo/base_link"), t_last_cmd_vel_(ros::Time::now().toSec()), laser_data_available_(false), visualization_(true) {
 
     ros::NodeHandle private_nh("~/" + name);
 
@@ -23,10 +23,10 @@ CarrotPlanner::CarrotPlanner(const std::string &name, double max_vel_lin, double
         virt_wall_pub_ = private_nh.advertise<sensor_msgs::LaserScan>("virtual_wall", 1);
         carrot_pub_ = private_nh.advertise<visualization_msgs::Marker>("carrot", 1);
     }
-    cmd_vel_pub_ = private_nh.advertise<geometry_msgs::Twist>("/cmd_vel", 1);
+    cmd_vel_pub_ = private_nh.advertise<geometry_msgs::Twist>("/amigo/base/references", 1);
 
     //! Listen to laser data
-    laser_scan_sub_ = private_nh.subscribe("/base_scan", 10, &CarrotPlanner::laserScanCallBack, this);
+    laser_scan_sub_ = private_nh.subscribe("/amigo/base_front_laser", 10, &CarrotPlanner::laserScanCallBack, this);
     
     tf_listener_ = new tf::TransformListener();
 
@@ -240,11 +240,8 @@ bool CarrotPlanner::isClearLine(){
 
 void CarrotPlanner::laserScanCallBack(const sensor_msgs::LaserScan::ConstPtr& laser_scan){
 
-    //! Only consider front laser (isn't this covered by selecting topic?)
-    if(laser_scan->header.frame_id == "/front_laser"){
         laser_scan_ = *laser_scan;
         laser_data_available_ = true;
-    }
 }
 
 
