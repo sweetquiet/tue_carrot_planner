@@ -39,6 +39,16 @@ CarrotPlanner::~CarrotPlanner() {
 }
 
 
+void CarrotPlanner::freeze()
+{
+    geometry_msgs::Twist cmd_vel;
+    cmd_vel.linear.x = 0;
+    cmd_vel.linear.y = 0;
+    cmd_vel.angular.z = 0;
+    cmd_vel_pub_.publish(cmd_vel);
+}
+
+
 bool CarrotPlanner::MoveToGoal(geometry_msgs::PoseStamped &goal){
 
     //! Velocity that will be published

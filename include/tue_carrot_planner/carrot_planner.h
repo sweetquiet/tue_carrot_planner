@@ -20,6 +20,8 @@ public:
 
     bool MoveToGoal(geometry_msgs::PoseStamped &goal);
 
+    void freeze();
+
 private:
 
     bool setGoal(geometry_msgs::PoseStamped& goal);
