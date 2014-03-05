@@ -14,7 +14,7 @@ class CarrotPlanner
 
 public:
 
-    CarrotPlanner(const std::string &name, double max_vel_lin = 0.5, double max_vel_rot = 0.4, double dist_wall = 0.65);
+    CarrotPlanner(const std::string &name, double max_vel_lin = 0.75, double max_vel_rot = 0.4, double dist_wall = 0.65, bool allow_rotate_only = true);
 
     ~CarrotPlanner();
 
@@ -71,6 +71,7 @@ private:
     //! Timestamp and value of last time cmd_vel was published
     double t_last_cmd_vel_;
     geometry_msgs::Twist last_cmd_vel_;
+    bool allow_rotate_only_;
 
     //! Comminucation
     ros::Publisher carrot_pub_, cmd_vel_pub_, virt_wall_pub_;

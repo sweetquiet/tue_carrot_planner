@@ -1,7 +1,8 @@
 #include "tue_carrot_planner/carrot_planner.h"
 
-CarrotPlanner::CarrotPlanner(const std::string &name, double max_vel_lin, double max_vel_rot, double dist_wall) :
-    tracking_frame_("/amigo/base_link"), t_last_cmd_vel_(ros::Time::now().toSec()), laser_data_available_(false), visualization_(true) {
+CarrotPlanner::CarrotPlanner(const std::string &name, double max_vel_lin, double max_vel_rot, double dist_wall, bool allow_rotate_only) :
+    tracking_frame_("/amigo/base_link"), t_last_cmd_vel_(ros::Time::now().toSec()),
+    allow_rotate_only_(allow_rotate_only), laser_data_available_(false), visualization_(true) {
 
     ros::NodeHandle private_nh("~/" + name);
 
@@ -136,6 +137,17 @@ bool CarrotPlanner::computeVelocityCommand(geometry_msgs::Twist &cmd_vel){
     //! Check if the path is free
     if(!isClearLine()) {
         ROS_DEBUG("Path is not free: only consider rotation");
+
+        // If only rotating in case of a blocked path is not allowed: no movements
+        if (!allow_rotate_only_)
+        {
+            last_cmd_vel_.angular.x = 0;
+            last_cmd_vel_.angular.y = 0;
+            last_cmd_vel_.angular.z = 0;
+            return true;
+        }
+
+        // Else, only consider rotation
         setZeroVelocity(cmd_vel);
         goal_.setX(0);
         goal_.setY(0);
@@ -171,21 +183,7 @@ bool CarrotPlanner::isClearLine(){
         return false;
     }
     
-    //! Transform goal angle to frame base laser
-    // TODO: This causes unstable behavior
     double angle_goal = goal_angle_;
-    /*
-    tf::Stamped<tf::Point> goal_pos(tf::Point(goal_.getX(), goal_.getY(), 0), ros::Time(), tracking_frame_);
-    try{
-        tf::Stamped<tf::Point> goal_pos_trans;
-        tf_listener_->transformPoint("/front_laser", goal_pos, goal_pos_trans);
-        angle_goal = atan2(goal_pos_trans.getY(), goal_pos_trans.getX());
-        ROS_INFO("After transformation: updated angle from %f to %f", goal_angle_, angle_goal);
-        
-
-    } catch (tf::TransformException ex){
-        ROS_WARN("Path check in carrot planner - transformPosition(): %s",ex.what());
-    }*/
     
     //! Get number of beams
     int num_readings = laser_scan_.ranges.size();
@@ -217,8 +215,6 @@ bool CarrotPlanner::isClearLine(){
         wall_msg.angle_max = laser_scan_.angle_min + std::min(num_readings, index_beam_target_pos + d_step) * laser_scan_.angle_increment;
         ROS_DEBUG("wall: from angle %f to %f", wall_msg.angle_min, wall_msg.angle_max);
     }
-
-    // TODO: virtual force: decrease/increase y-coordinate goal using goal_.setY(SOME_GAIN*(goal_.getY()-dy));
 
     //! Check for objects in front of virtual wall
     bool path_free = true;
