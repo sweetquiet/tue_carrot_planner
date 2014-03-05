@@ -141,6 +141,7 @@ bool CarrotPlanner::computeVelocityCommand(geometry_msgs::Twist &cmd_vel){
         // If only rotating in case of a blocked path is not allowed: no movements
         if (!allow_rotate_only_)
         {
+            ROS_DEBUG("Not allowed to rotate when path is blocked");
             last_cmd_vel_.angular.x = 0;
             last_cmd_vel_.angular.y = 0;
             last_cmd_vel_.angular.z = 0;
