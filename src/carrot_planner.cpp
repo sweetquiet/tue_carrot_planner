@@ -59,7 +59,9 @@ bool CarrotPlanner::MoveToGoal(geometry_msgs::PoseStamped &goal){
     if (setGoal(goal)) {
 
         //! Compute velocity command and publish this command
-        if(computeVelocityCommand(cmd_vel)) {
+        bool non_zero_vel = computeVelocityCommand(cmd_vel);
+        if (non_zero_vel)
+        {
 
             ROS_DEBUG("Publishing velocity command: (x,y,th) = (%f.%f,%f)", cmd_vel.linear.x, cmd_vel.linear.y, cmd_vel.angular.z);
             
@@ -74,6 +76,8 @@ bool CarrotPlanner::MoveToGoal(geometry_msgs::PoseStamped &goal){
         }
     }
 
+    //! Publish zero velocity
+    cmd_vel_pub_.publish(cmd_vel);
     return false;
 }
 
@@ -135,7 +139,7 @@ bool CarrotPlanner::computeVelocityCommand(geometry_msgs::Twist &cmd_vel){
     ROS_DEBUG("Goal before is clear line (%f,%f,%f)", goal_.getX(), goal_.getY(), goal_angle_);
 
     //! Check if the path is free
-    if(!isClearLine()) {
+    if (!isClearLine()) {
         ROS_DEBUG("Path is not free: only consider rotation");
 
         // If only rotating in case of a blocked path is not allowed: no movements
@@ -145,7 +149,7 @@ bool CarrotPlanner::computeVelocityCommand(geometry_msgs::Twist &cmd_vel){
             last_cmd_vel_.angular.x = 0;
             last_cmd_vel_.angular.y = 0;
             last_cmd_vel_.angular.z = 0;
-            return true;
+            return false;
         }
 
         // Else, only consider rotation
