@@ -18,6 +18,8 @@ CarrotPlanner::CarrotPlanner(const std::string &name, double max_vel_lin, double
     private_nh.param("radius_robot", RADIUS_ROBOT, 0.5);
     private_nh.param("min_angle_zero_trans", MIN_ANGLE_ZERO_TRANS, 10.0/180.0*3.14159);
 
+    //! Listen to laser data
+    laser_scan_sub_ = private_nh.subscribe("/amigo/base_front_laser", 10, &CarrotPlanner::laserScanCallBack, this);
 
     //! Publishers
     if (visualization_) {
@@ -26,10 +28,18 @@ CarrotPlanner::CarrotPlanner(const std::string &name, double max_vel_lin, double
     }
     cmd_vel_pub_ = private_nh.advertise<geometry_msgs::Twist>("/amigo/base/references", 1);
 
-    //! Listen to laser data
-    laser_scan_sub_ = private_nh.subscribe("/amigo/base_front_laser", 10, &CarrotPlanner::laserScanCallBack, this);
-    
+    //! Tf
     tf_listener_ = new tf::TransformListener();
+
+    //! Wait for laser data
+    double t = ros::Time::now().toSec();
+    ros::Rate r(20.0);
+    while (!laser_data_available_)
+    {
+        ros::spinOnce();
+        r.sleep();
+    }
+    ROS_INFO("tue_carrot_planner waited %f [s] for laser data!", ros::Time::now().toSec()-t);
 
 }
 
