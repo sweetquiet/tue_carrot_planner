@@ -2,7 +2,7 @@
 
 CarrotPlanner::CarrotPlanner(const std::string &name, double max_vel_lin, double max_vel_rot, double dist_wall, bool allow_rotate_only) :
     tracking_frame_("/amigo/base_link"), t_last_cmd_vel_(ros::Time::now().toSec()),
-    allow_rotate_only_(allow_rotate_only), laser_data_available_(false), visualization_(true) {
+    allow_rotate_only_(allow_rotate_only), robot_did_move_(false), scaling_factor_safety_(0.05), laser_data_available_(false), visualization_(true) {
 
     ros::NodeHandle private_nh("~/" + name);
 
@@ -52,6 +52,10 @@ CarrotPlanner::~CarrotPlanner() {
 
 void CarrotPlanner::freeze()
 {
+	// Administration
+	robot_did_move_ = false;
+	
+	// Publish command
     geometry_msgs::Twist cmd_vel;
     cmd_vel.linear.x = 0;
     cmd_vel.linear.y = 0;
@@ -62,32 +66,37 @@ void CarrotPlanner::freeze()
 
 bool CarrotPlanner::MoveToGoal(geometry_msgs::PoseStamped &goal){
 
+	// return false: zero velocity
+	// return true: non-zero velocity
+
     //! Velocity that will be published
     geometry_msgs::Twist cmd_vel;
 
-    //! Set goal
-    if (setGoal(goal)) {
-
-        //! Compute velocity command and publish this command
+    //! If the goal is valid
+    if (setGoal(goal))
+    {
+		
+		//! Compute velocity command
         bool non_zero_vel = computeVelocityCommand(cmd_vel);
-        if (non_zero_vel)
+        
+        //! In case robot should not move: freeze
+        if (!non_zero_vel || (goal_.getX() == 0 && goal_.getY() == 0 && goal_angle_ == 0) )
         {
+			freeze();
+			return false;
+		}
 
-            ROS_DEBUG("Publishing velocity command: (x,y,th) = (%f.%f,%f)", cmd_vel.linear.x, cmd_vel.linear.y, cmd_vel.angular.z);
-            
-            if (goal_.getX() == 0 && goal_.getY() == 0 && goal_angle_ == 0) {
-                cmd_vel.linear.x = 0;
-                cmd_vel.linear.y = 0;
-                cmd_vel.angular.z = 0;
-            }
-            cmd_vel_pub_.publish(cmd_vel);
+		//! Else: robot should move, publish command
+        ROS_DEBUG("Publishing velocity command: (x,y,th) = (%f.%f,%f)", cmd_vel.linear.x, cmd_vel.linear.y, cmd_vel.angular.z);
+        cmd_vel_pub_.publish(cmd_vel);
+        robot_did_move_ = true;
 
-            return true;
-        }
+        return true;
+
     }
 
-    //! Publish zero velocity
-    cmd_vel_pub_.publish(cmd_vel);
+    //! In case the goal is invalid: do not move
+    freeze();
     return false;
 }
 
@@ -146,7 +155,7 @@ bool CarrotPlanner::computeVelocityCommand(geometry_msgs::Twist &cmd_vel){
         dt = time - t_last_cmd_vel_;
     }
     t_last_cmd_vel_ = time;
-    ROS_DEBUG("Goal before is clear line (%f,%f,%f)", goal_.getX(), goal_.getY(), goal_angle_);
+    ROS_DEBUG("Goal before isClearLine() is (x,y,theta): (%f,%f,%f)", goal_.getX(), goal_.getY(), goal_angle_);
 
     //! Check if the path is free
     if (!isClearLine()) {
@@ -162,7 +171,7 @@ bool CarrotPlanner::computeVelocityCommand(geometry_msgs::Twist &cmd_vel){
             return false;
         }
 
-        // Else, only consider rotation
+        // Else, only consider rotation in case of a blocked path
         setZeroVelocity(cmd_vel);
         goal_.setX(0);
         goal_.setY(0);
@@ -173,9 +182,12 @@ bool CarrotPlanner::computeVelocityCommand(geometry_msgs::Twist &cmd_vel){
 
     //! Normalize position
     tf::Vector3 goal_norm;
-    if (goal_.length() > 1e-6) {
+    if (goal_.length() > 1e-6)
+    {
         goal_norm = goal_.normalized();
-    } else {
+    }
+    else
+    {
         goal_norm = goal_;
     }
 
@@ -304,6 +316,20 @@ void CarrotPlanner::determineDesiredVelocity(double dt, geometry_msgs::Twist &cm
         vel_desired.setZ(0);
     }
     vel_desired *= v_desired_norm;
+    
+    //! To avoid high acceleration after a zero velocity, perform hacky scaling
+    
+    // After a freeze force the velocity to be low: LINEAR PART
+    if (!robot_did_move_) scaling_factor_safety_ = 0.05;
+    // Scaling should lead to an increase in velocity
+    if (scaling_factor_safety_ < 1.0)
+    {
+		ROS_DEBUG("Use scaling to force the acceleration to be low!");
+		// Perform the actual scaling: only allow drivinf forward to reduce slip!)
+		vel_desired.setX(scaling_factor_safety_*vel_desired.getX());
+		vel_desired.setY(0);
+		vel_desired.setZ(0);
+	}
 
     //! Check if the acceleration bound is violated
     tf::Vector3 vel_diff = vel_desired - current_vel_trans;
@@ -338,6 +364,15 @@ void CarrotPlanner::determineDesiredVelocity(double dt, geometry_msgs::Twist &cm
     ROS_DEBUG("Adapted angular velocity from %f to %f for theta is %f", angular_vel_calc, cmd_vel.angular.z, goal_angle_);
 
     ROS_DEBUG("Final velocity command: (x:%f, y:%f, th:%f)", cmd_vel.linear.x, cmd_vel.linear.y, cmd_vel.angular.z);
+    
+    // ANGULAR PART of the scaling: do not allow rotationS when drving away startup
+    if (scaling_factor_safety_ < 1.0) 
+    {
+		cmd_vel.angular.z = 0;
+		// Increase the factor such that at the next time step, the velocity is a little higher
+		scaling_factor_safety_ += 0.05;
+		ROS_INFO("\tCarrot planner increased scaling factor to %f", scaling_factor_safety_);
+	}
 }
 
 // PARTLY TAKEN FROM amigo_ref_interpolator

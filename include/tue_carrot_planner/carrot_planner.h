@@ -72,6 +72,8 @@ private:
     double t_last_cmd_vel_;
     geometry_msgs::Twist last_cmd_vel_;
     bool allow_rotate_only_;
+    bool robot_did_move_;
+    double scaling_factor_safety_;
 
     //! Comminucation
     ros::Publisher carrot_pub_, cmd_vel_pub_, virt_wall_pub_;
