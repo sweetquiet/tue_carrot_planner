@@ -165,9 +165,9 @@ bool CarrotPlanner::computeVelocityCommand(geometry_msgs::Twist &cmd_vel){
         if (!allow_rotate_only_)
         {
             ROS_DEBUG("Not allowed to rotate when path is blocked");
-            last_cmd_vel_.angular.x = 0;
-            last_cmd_vel_.angular.y = 0;
-            last_cmd_vel_.angular.z = 0;
+            cmd_vel.angular.x = 0;
+            cmd_vel.angular.y = 0;
+            cmd_vel.angular.z = 0;
             return false;
         }
 
