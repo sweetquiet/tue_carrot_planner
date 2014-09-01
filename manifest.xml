@@ -16,8 +16,6 @@
     <cpp cflags="-I${prefix}/include" lflags="-Wl,-rpath,${prefix}/lib -L${prefix}/lib -ltue_carrot_planner"/>
   </export>
 
-  <depend package="common_rosdeps" />
-
 </package>
 
 
