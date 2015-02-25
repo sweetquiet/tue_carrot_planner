@@ -19,7 +19,7 @@ CarrotPlanner::CarrotPlanner(const std::string &name, double max_vel_lin, double
     private_nh.param("min_angle_zero_trans", MIN_ANGLE_ZERO_TRANS, 10.0/180.0*3.14159);
 
     //! Listen to laser data
-    laser_scan_sub_ = private_nh.subscribe("/amigo/base_front_laser", 10, &CarrotPlanner::laserScanCallBack, this);
+    laser_scan_sub_ = private_nh.subscribe("/amigo/base_laser/scan", 10, &CarrotPlanner::laserScanCallBack, this);
 
     //! Publishers
     if (visualization_) {
